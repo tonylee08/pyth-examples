@@ -71,12 +71,17 @@ A companion off-chain publisher lives at [`lazer/js/src/sui/post_sui.ts`](../js/
    pnpm install
    ```
 
-5. **Run the publisher**
+5. **Configure environment variables**
+
+   Copy the example file and fill in the four required values:
    ```bash
-   ACCESS_TOKEN=<your Pyth Lazer token> \
-   SUI_PRIVATE_KEY=<bech32 suiprivkey1...> \
-   PACKAGE_ID=<from step 2> \
-   STORE_ID=<from step 3> \
+   cp .env.example .env
+   $EDITOR .env
+   ```
+   `.env` is gitignored at the repo root, so your token and private key stay local. The `pnpm` script loads it automatically via Node's built-in `--env-file-if-exists` flag (no `dotenv` dependency).
+
+6. **Run the publisher**
+   ```bash
    pnpm run start:post_sui
    ```
    You should see one transaction digest printed roughly every second. Inspect the store with `sui client object $STORE_ID` to confirm `price`, `exponent`, and `lazer_timestamp_us` are advancing.

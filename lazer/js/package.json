@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node --loader ts-node/esm src/index.js",
     "start:post_solana": "node --loader ts-node/esm src/solana/post_solana.js",
-    "start:post_sui": "node --loader ts-node/esm src/sui/post_sui.js",
+    "start:post_sui": "node --env-file-if-exists=.env --loader ts-node/esm src/sui/post_sui.js",
     "start:verify_ecdsa_message": "node --loader ts-node/esm src/solana/verify_ecdsa_message.js",
     "start:verify_ed25519_message": "node --loader ts-node/esm src/solana/verify_ed25519_message.js",
     "test": "pnpm run test:format && pnpm run test:types && pnpm run build:cjs && pnpm run build:esm",
