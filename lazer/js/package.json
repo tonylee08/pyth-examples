@@ -6,9 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "node --loader ts-node/esm src/index.js",
-    "start:post_solana": "node --loader ts-node/esm src/solana/post_solana.js",
-    "start:verify_ecdsa_message": "node --loader ts-node/esm src/solana/verify_ecdsa_message.js",
-    "start:verify_ed25519_message": "node --loader ts-node/esm src/solana/verify_ed25519_message.js",
+    "start:post_sui": "node --env-file-if-exists=.env --loader ts-node/esm src/sui/post_sui.js",
+    "start:post_sui_wrong_feed": "node --env-file-if-exists=.env --loader ts-node/esm src/sui/post_sui_wrong_feed.js",
     "test": "pnpm run test:format && pnpm run test:types && pnpm run build:cjs && pnpm run build:esm",
     "build:cjs": "tsc --project tsconfig.json --verbatimModuleSyntax false --module commonjs --outDir ./dist/cjs && echo '{\"type\":\"commonjs\"}' > dist/cjs/package.json",
     "build:esm": "tsc --project tsconfig.json --outDir ./dist/esm && echo '{\"type\":\"module\"}' > dist/esm/package.json",
@@ -20,15 +19,12 @@
   "license": "Apache-2.0",
   "dependencies": {
     "@pythnetwork/pyth-lazer-sdk": "^2.0.0",
-    "@pythnetwork/pyth-lazer-solana-sdk": "^0.1.2",
-    "@solana/web3.js": "^1.98.0",
-    "@coral-xyz/anchor": "^0.30.1",
-    "yargs": "^17.7.2"
+    "@pythnetwork/pyth-lazer-sui-js": "^0.3.0",
+    "@mysten/sui": "^1.30.0"
   },
   "devDependencies": {
     "@cprussin/tsconfig": "^3.0.1",
     "@types/node": "^22.10.0",
-    "@types/yargs": "^17.0.33",
     "prettier": "^3.4.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.7.2"
