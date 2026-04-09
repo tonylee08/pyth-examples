@@ -6,12 +6,23 @@
  * published to Sui and a `PriceStore` created (via `create_store`) before this
  * script can run. See `lazer/sui/README.md` for the publish + create-store flow.
  *
+ * Verification model: this script builds a two-call Programmable Transaction
+ * Block. The first call invokes Pyth's official on-chain verifier
+ * (`pyth_lazer::pyth_lazer::parse_and_verify_le_ecdsa_update`) via the
+ * `@pythnetwork/pyth-lazer-sui-js` SDK helper, which returns a verified
+ * `Update` value. The second call passes that value into our consumer's
+ * `update_price`. Because `Update` cannot be constructed outside the
+ * `pyth_lazer` package, the type system itself enforces "this came from
+ * Pyth's verifier" — no trust assumptions in the consumer code.
+ *
  * Required env vars:
- *   ACCESS_TOKEN      Pyth Lazer API token (must be entitled to crypto feeds).
- *   SUI_PRIVATE_KEY   Bech32 ed25519 secret key, e.g. `suiprivkey1...`. Get one
- *                     with `sui keytool export --key-identity <addr>`.
- *   PACKAGE_ID        Object id returned by `sui client publish`.
- *   STORE_ID          Object id of the shared `PriceStore` (from `create_store`).
+ *   ACCESS_TOKEN          Pyth Lazer API token (must be entitled to crypto feeds).
+ *   SUI_PRIVATE_KEY       Bech32 ed25519 secret key, e.g. `suiprivkey1...`. Get one
+ *                         with `sui keytool export --key-identity <addr>`.
+ *   PACKAGE_ID            Object id returned by `sui client publish`.
+ *   STORE_ID              Object id of the shared `PriceStore` (from `create_store`).
+ *   PYTH_LAZER_STATE_ID   Pyth-managed Lazer State shared object id (testnet/mainnet
+ *                         defaults documented in `.env.example`).
  *
  * Optional env vars:
  *   SUI_NETWORK       "testnet" (default) | "mainnet" | "devnet" | "localnet".
@@ -22,6 +33,7 @@ import { PythLazerClient } from "@pythnetwork/pyth-lazer-sdk";
 import { SuiClient, getFullnodeUrl } from "@mysten/sui/client";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction } from "@mysten/sui/transactions";
+import { addParseAndVerifyLeEcdsaUpdateCall } from "@pythnetwork/pyth-lazer-sui-js";
 
 type SuiNetwork = "testnet" | "mainnet" | "devnet" | "localnet";
 
@@ -37,6 +49,7 @@ const ACCESS_TOKEN = requireEnv("ACCESS_TOKEN");
 const SUI_PRIVATE_KEY = requireEnv("SUI_PRIVATE_KEY");
 const PACKAGE_ID = requireEnv("PACKAGE_ID");
 const STORE_ID = requireEnv("STORE_ID");
+const PYTH_LAZER_STATE_ID = requireEnv("PYTH_LAZER_STATE_ID");
 const SUI_NETWORK = (process.env.SUI_NETWORK ?? "testnet") as SuiNetwork;
 const POST_INTERVAL_MS = Number(process.env.POST_INTERVAL_MS ?? "1000");
 
@@ -61,6 +74,7 @@ const main = async () => {
   console.log(`network:        ${SUI_NETWORK}`);
   console.log(`package:        ${PACKAGE_ID}`);
   console.log(`store:          ${STORE_ID}`);
+  console.log(`lazer state:    ${PYTH_LAZER_STATE_ID}`);
   console.log(`post interval:  ${POST_INTERVAL_MS}ms`);
 
   const lazer = await PythLazerClient.create({
@@ -88,7 +102,7 @@ const main = async () => {
     // The Move parser supports both `price` and `exponent`, and `update_price`
     // requires both to be present.
     properties: ["price", "exponent"],
-    // `leEcdsa` is the format `parse_and_validate_update` expects on-chain.
+    // `leEcdsa` is the format Pyth's Sui verifier expects.
     formats: ["leEcdsa"],
     deliveryFormat: "json",
     // Subscribe at 200ms upstream; the drain loop below throttles to 1Hz.
@@ -117,16 +131,34 @@ const postIfDue = async () => {
   // Snapshot + clear so a slow tx doesn't re-post the same bytes.
   const updateHex = latestUpdateHex;
   latestUpdateHex = undefined;
+  // Mark `lastPostedAt` BEFORE awaiting the tx so the cooldown clock starts
+  // when the post *began*, not when it confirmed. Otherwise the cadence
+  // becomes (POST_INTERVAL_MS + tx confirmation latency) ≈ 2s on testnet.
+  lastPostedAt = Date.now();
 
   try {
-    const updateBytes = Array.from(Buffer.from(updateHex, "hex"));
+    const updateBytes = Buffer.from(updateHex, "hex");
 
     const tx = new Transaction();
+    // Step 1: Pyth's on-chain verifier. Returns a verified `Update` value
+    // into the PTB. Internally this RPCs `getObject(stateObjectId)` to
+    // resolve the latest package id behind the upgrade cap, so it adds
+    // ~50–200ms to each tx build. Acceptable for 1Hz.
+    const verifiedUpdate = await addParseAndVerifyLeEcdsaUpdateCall({
+      client: sui,
+      tx,
+      stateObjectId: PYTH_LAZER_STATE_ID,
+      update: updateBytes,
+    });
+
+    // Step 2: hand the verified Update straight to our consumer. The Move
+    // type system guarantees this Update came from Pyth's verifier — we
+    // don't (and can't) check it ourselves.
     tx.moveCall({
       target: `${PACKAGE_ID}::lazer_example::update_price`,
       arguments: [
         tx.object(STORE_ID),
-        tx.pure.vector("u8", updateBytes),
+        verifiedUpdate,
         tx.object(SUI_CLOCK_OBJECT_ID),
       ],
     });
@@ -139,11 +171,8 @@ const postIfDue = async () => {
 
     const status = result.effects?.status?.status ?? "unknown";
     console.log(`[${new Date().toISOString()}] posted ${result.digest} (${status})`);
-    lastPostedAt = Date.now();
   } catch (err) {
     console.error("post failed:", err instanceof Error ? err.message : err);
-    // Don't update lastPostedAt — we'll retry on the next tick with a fresh
-    // update if one has arrived.
   } finally {
     inFlight = false;
   }

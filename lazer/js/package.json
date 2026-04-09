@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node --loader ts-node/esm src/index.js",
     "start:post_sui": "node --env-file-if-exists=.env --loader ts-node/esm src/sui/post_sui.js",
+    "start:post_sui_wrong_feed": "node --env-file-if-exists=.env --loader ts-node/esm src/sui/post_sui_wrong_feed.js",
     "test": "pnpm run test:format && pnpm run test:types && pnpm run build:cjs && pnpm run build:esm",
     "build:cjs": "tsc --project tsconfig.json --verbatimModuleSyntax false --module commonjs --outDir ./dist/cjs && echo '{\"type\":\"commonjs\"}' > dist/cjs/package.json",
     "build:esm": "tsc --project tsconfig.json --outDir ./dist/esm && echo '{\"type\":\"module\"}' > dist/esm/package.json",
@@ -18,6 +19,7 @@
   "license": "Apache-2.0",
   "dependencies": {
     "@pythnetwork/pyth-lazer-sdk": "^2.0.0",
+    "@pythnetwork/pyth-lazer-sui-js": "^0.3.0",
     "@mysten/sui": "^1.30.0"
   },
   "devDependencies": {

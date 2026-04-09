@@ -14,6 +14,9 @@ importers:
       '@pythnetwork/pyth-lazer-sdk':
         specifier: ^2.0.0
         version: 2.0.0(bufferutil@4.0.8)(utf-8-validate@5.0.10)
+      '@pythnetwork/pyth-lazer-sui-js':
+        specifier: ^0.3.0
+        version: 0.3.0(typescript@5.7.2)
     devDependencies:
       '@cprussin/tsconfig':
         specifier: ^3.0.1
@@ -122,6 +125,10 @@ packages:
 
   '@pythnetwork/pyth-lazer-sdk@2.0.0':
     resolution: {integrity: sha512-0zMRvJqfO/jZxCSoCZs/XFiP0qp1WF4DrceXLTkgb6AWBvbONx3rhj2UGUjqBJlAfppuTsJ1I6XTgNIV+elEwA==}
+
+  '@pythnetwork/pyth-lazer-sui-js@0.3.0':
+    resolution: {integrity: sha512-YNkXjSlMfuNGYflN7UH+29OgRe5PztmARHuM8DpsCe17/hwhgI0dBiXd/cUII4AR/yGNGEycNCxodCG48BEmtA==}
+    engines: {node: ^24.0.0}
 
   '@scure/base@1.2.6':
     resolution: {integrity: sha512-g/nm5FgUa//MCj1gV09zTJTaM6KBAHqLN907YVQqf7zC49+DcO4B1so4ZX07Ef10Twr6nuqYEH9GEggFXA4Fmg==}
@@ -359,6 +366,14 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
+
+  '@pythnetwork/pyth-lazer-sui-js@0.3.0(typescript@5.7.2)':
+    dependencies:
+      '@mysten/sui': 1.45.2(typescript@5.7.2)
+    transitivePeerDependencies:
+      - '@gql.tada/svelte-support'
+      - '@gql.tada/vue-support'
+      - typescript
 
   '@scure/base@1.2.6': {}
 

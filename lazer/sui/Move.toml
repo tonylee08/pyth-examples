@@ -1,12 +1,24 @@
 [package]
 name = "lazer_example"
-edition = "2024.beta"
+edition = "2024"
 
 [dependencies]
+# Official Pyth Lazer Sui package — provides `parse_and_verify_le_ecdsa_update`,
+# the `Update` / `Feed` / `I64` / `I16` types, and the rotatable trusted-signer
+# `State` shared object.
+#
+# IMPORTANT: For testnet deploys you MUST use `rev = "sui-testnet"` because
+# Wormhole is custom-deployed there. For mainnet, swap to `rev = "main"`.
+pyth_lazer = { git = "https://github.com/pyth-network/pyth-crosschain.git", subdir = "lazer/contracts/sui", rev = "sui-testnet" }
 
-[addresses]
-lazer_example = "0x0"
-
-[dev-dependencies]
-
-[dev-addresses]
+# `pyth_lazer` and `wormhole` are already published on Sui — we depend on the
+# source only so we can typecheck against their Move types. `dep-replacements`
+# tells `sui client publish` "don't try to re-publish these, here are the
+# on-chain addresses to link against."
+#
+# These addresses come from `contract_manager/src/store/contracts/SuiLazerContracts.json`
+# in the pyth-network/pyth-crosschain repo (sui-testnet branch). `published-at`
+# and `original-id` are equal because both packages are at version 1 (no upgrades).
+[dep-replacements.testnet]
+pyth_lazer = { git = "https://github.com/pyth-network/pyth-crosschain.git", subdir = "lazer/contracts/sui", rev = "sui-testnet", published-at = "0xf5bd2141967507050a91b58de3d95e77c432cd90d1799ee46effc27430a68c21", original-id = "0xf5bd2141967507050a91b58de3d95e77c432cd90d1799ee46effc27430a68c21" }
+wormhole = { git = "https://github.com/pyth-network/wormhole.git", subdir = "sui/wormhole", rev = "sui-testnet", published-at = "0xd5afd4e456e5451f1ca1e7b3d734ce7a0a3b397811a6cb72a4bd1dfc387839f2", original-id = "0xd5afd4e456e5451f1ca1e7b3d734ce7a0a3b397811a6cb72a4bd1dfc387839f2" }
