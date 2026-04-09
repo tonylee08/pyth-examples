@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node --loader ts-node/esm src/index.js",
     "start:post_solana": "node --loader ts-node/esm src/solana/post_solana.js",
+    "start:post_sui": "node --loader ts-node/esm src/sui/post_sui.js",
     "start:verify_ecdsa_message": "node --loader ts-node/esm src/solana/verify_ecdsa_message.js",
     "start:verify_ed25519_message": "node --loader ts-node/esm src/solana/verify_ed25519_message.js",
     "test": "pnpm run test:format && pnpm run test:types && pnpm run build:cjs && pnpm run build:esm",
@@ -23,6 +24,7 @@
     "@pythnetwork/pyth-lazer-solana-sdk": "^0.1.2",
     "@solana/web3.js": "^1.98.0",
     "@coral-xyz/anchor": "^0.30.1",
+    "@mysten/sui": "^1.30.0",
     "yargs": "^17.7.2"
   },
   "devDependencies": {

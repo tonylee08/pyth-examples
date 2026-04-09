@@ -3,10 +3,16 @@ module lazer_example::lazer_example;
 use lazer_example::i64::{Self, I64};
 use lazer_example::i16::{Self, I16};
 use sui::bcs;
+use sui::clock::Clock;
 use sui::ecdsa_k1::secp256k1_ecrecover;
+use sui::event;
 
 const UPDATE_MESSAGE_MAGIC: u32 = 1296547300;
 const PAYLOAD_MAGIC: u32 = 2479346549;
+
+const E_STALE_UPDATE: u64 = 1;
+const E_FEED_NOT_FOUND: u64 = 2;
+const E_PRICE_UNAVAILABLE: u64 = 3;
 
 public enum Channel has copy, drop {
     Invalid,
@@ -195,6 +201,106 @@ public fun parse_and_validate_update(update: vector<u8>): Update {
         channel: channel,
         feeds: feeds,
     }
+}
+
+/// Shared object that holds the latest price for a single Lazer feed.
+/// Created once per feed via `create_store` and updated by `update_price`.
+public struct PriceStore has key {
+    id: UID,
+    /// Lazer feed id this store tracks (e.g. 1 for BTC/USD).
+    feed_id: u32,
+    /// Latest price reported by Lazer. Interpreted with `exponent`.
+    price: I64,
+    /// Decimal exponent for `price` (typically negative, e.g. -8).
+    exponent: I16,
+    /// Timestamp of the latest update, in microseconds (Lazer's units).
+    lazer_timestamp_us: u64,
+    /// Sui clock timestamp (ms) when the store was last touched. Diagnostic only.
+    last_updated_ms: u64,
+}
+
+/// Emitted on every successful `update_price` call.
+public struct PriceUpdated has copy, drop {
+    feed_id: u32,
+    price: I64,
+    exponent: I16,
+    lazer_timestamp_us: u64,
+}
+
+/// Create and share a `PriceStore` for the given Lazer feed id.
+/// Call this once per feed; subsequent updates use `update_price`.
+public fun create_store(feed_id: u32, ctx: &mut TxContext) {
+    let store = PriceStore {
+        id: object::new(ctx),
+        feed_id,
+        price: i64::new(0, false),
+        exponent: i16::new(0, false),
+        lazer_timestamp_us: 0,
+        last_updated_ms: 0,
+    };
+    transfer::share_object(store);
+}
+
+/// Verify a Lazer `leEcdsa` update and write the matching feed into `store`.
+///
+/// Aborts if:
+/// - the signature or magic bytes don't match (via `parse_and_validate_update`),
+/// - the update is older than what's already stored (`E_STALE_UPDATE`),
+/// - the store's feed id is not present in the update (`E_FEED_NOT_FOUND`),
+/// - the matched feed has no price or no exponent (`E_PRICE_UNAVAILABLE`).
+public fun update_price(
+    store: &mut PriceStore,
+    update: vector<u8>,
+    clock: &Clock,
+) {
+    let parsed = parse_and_validate_update(update);
+    assert!(parsed.timestamp > store.lazer_timestamp_us, E_STALE_UPDATE);
+
+    let feed = find_feed(&parsed.feeds, store.feed_id);
+
+    // Both Option layers must be Some: the field must exist in the update,
+    // and the value must be present (Lazer can return None if there are not
+    // enough publishers).
+    assert!(feed.price.is_some(), E_PRICE_UNAVAILABLE);
+    let price_outer = feed.price.borrow();
+    assert!(price_outer.is_some(), E_PRICE_UNAVAILABLE);
+    let price = *price_outer.borrow();
+
+    assert!(feed.exponent.is_some(), E_PRICE_UNAVAILABLE);
+    let exponent = *feed.exponent.borrow();
+
+    store.price = price;
+    store.exponent = exponent;
+    store.lazer_timestamp_us = parsed.timestamp;
+    store.last_updated_ms = clock.timestamp_ms();
+
+    event::emit(PriceUpdated {
+        feed_id: store.feed_id,
+        price,
+        exponent,
+        lazer_timestamp_us: parsed.timestamp,
+    });
+}
+
+/// Read-only accessors — useful from PTBs and other modules.
+public fun price(store: &PriceStore): I64 { store.price }
+public fun exponent(store: &PriceStore): I16 { store.exponent }
+public fun feed_id(store: &PriceStore): u32 { store.feed_id }
+public fun lazer_timestamp_us(store: &PriceStore): u64 { store.lazer_timestamp_us }
+public fun last_updated_ms(store: &PriceStore): u64 { store.last_updated_ms }
+
+/// Linear scan for the feed with `target_id`. Aborts if not present.
+fun find_feed(feeds: &vector<Feed>, target_id: u32): &Feed {
+    let len = feeds.length();
+    let mut i = 0;
+    while (i < len) {
+        let feed = &feeds[i];
+        if (feed.feed_id == target_id) {
+            return feed
+        };
+        i = i + 1;
+    };
+    abort E_FEED_NOT_FOUND
 }
 
 #[test]
